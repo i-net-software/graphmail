@@ -1,0 +1,184 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+    id 'io.github.gradle-nexus.publish-plugin' version '2.0.0'
+}
+
+group = 'de.inetsoftware'
+version = project.findProperty('version') ?: '0.1'
+
+base {
+    archivesName = 'graphmail'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    api 'jakarta.mail:jakarta.mail-api:2.1.5'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:6.1.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testRuntimeOnly 'org.eclipse.angus:angus-mail:2.0.5'
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src']
+        }
+        resources {
+            srcDirs = ['src']
+            exclude '**/*.java'
+        }
+    }
+    test {
+        java {
+            srcDirs = ['test']
+        }
+        resources {
+            srcDirs = ['test']
+            exclude '**/*.java'
+        }
+    }
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+    withSourcesJar()
+    withJavadocJar()
+}
+
+tasks.withType( JavaCompile ).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.withType( Javadoc ).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+tasks.named( 'test', Test ) {
+    useJUnitPlatform()
+}
+
+tasks.named( 'sourcesJar' ) {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named( 'processResources' ) {
+    def providerVersion = project.version.toString()
+    inputs.property( 'projectVersion', providerVersion )
+    filesMatching( 'META-INF/jakarta.providers' ) {
+        expand( projectVersion: providerVersion )
+    }
+}
+
+jar {
+    manifest {
+        attributes(
+                        'Implementation-Title': 'Jakarta Mail Provider for Microsoft Graph',
+                        'Implementation-Vendor-Id': 'de.inetsoftware',
+                        'Implementation-Vendor': 'i-net software GmbH, Berlin, Germany',
+                        'Implementation-Version': project.version,
+                        'Automatic-Module-Name': 'de.inetsoftware.mail.graph',
+                        'Bundle-SymbolicName': 'de.inetsoftware.mail.graph',
+                        'Export-Package': 'de.inetsoftware.mail.graph',
+                        'Bundle-Version': project.version
+        )
+    }
+}
+
+publishing {
+    publications {
+        mavenJava( MavenPublication ) {
+            from components.java
+            artifactId = 'graphmail'
+
+            pom {
+                name = 'Jakarta Mail Provider for Microsoft Graph'
+                description = 'A Jakarta Mail provider that accesses mailboxes and sends messages through the Microsoft Graph API.'
+                url = 'https://github.com/i-net-software/graphmail'
+
+                licenses {
+                    license {
+                        name = 'MIT License'
+                        url = 'https://opensource.org/license/mit'
+                        distribution = 'repo'
+                    }
+                }
+
+                developers {
+                    developer {
+                        id = 'vberlin'
+                        name = 'Volker Berlin'
+                        email = 'vberlin@inetsoftware.de'
+                        organization = 'i-net software'
+                        organizationUrl = 'https://www.inetsoftware.de/'
+                    }
+                }
+
+                scm {
+                    connection = 'scm:git:https://github.com/i-net-software/graphmail.git'
+                    developerConnection = 'scm:git:ssh://git@github.com/i-net-software/graphmail.git'
+                    url = 'https://github.com/i-net-software/graphmail'
+                }
+            }
+        }
+    }
+
+    repositories {
+        mavenLocal()
+    }
+}
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl.set( uri( 'https://ossrh-staging-api.central.sonatype.com/service/local/' ) )
+            snapshotRepositoryUrl.set( uri( 'https://central.sonatype.com/repository/maven-snapshots/' ) )
+            username.set(
+                project.findProperty('ossrhUsername') 
+                    ?: project.findProperty('sonatypeUsername')
+                    ?: System.getenv('SONATYPE_USERNAME') 
+                    ?: System.getenv('OSSRH_USERNAME')
+                    ?: ""
+            )
+            password.set(
+                project.findProperty('ossrhPassword')
+                    ?: project.findProperty('sonatypePassword')
+                    ?: System.getenv('SONATYPE_PASSWORD')
+                    ?: System.getenv('OSSRH_PASSWORD')
+                    ?: ""
+            )
+        }
+    }
+}
+
+def signingKey = providers.gradleProperty( 'signing.key' )
+                .orElse( providers.environmentVariable( 'SIGNING_KEY' ) )
+def signingPassword = providers.gradleProperty( 'signing.password' )
+                .orElse( providers.environmentVariable( 'SIGNING_PASSWORD' ) )
+def publishingToMavenLocal = gradle.startParameter.taskNames.any { it.toLowerCase().contains( 'mavenlocal' ) }
+
+signing {
+    required = !publishingToMavenLocal && signingKey.isPresent()
+    if( signingKey.isPresent() ) {
+        useInMemoryPgpKeys( signingKey.get(), signingPassword.getOrElse( '' ) )
+        sign publishing.publications.mavenJava
+    } else if (project.hasProperty("signing.keyId") ) {
+        sign publishing.publications.mavenJava
+    }
+}
+
+tasks.register( 'deployToSonatype' ) {
+    group = 'publishing'
+    description = 'Publishes all artifacts to Sonatype and releases non-snapshot versions.'
+    dependsOn 'publishToSonatype'
+    if( !project.version.toString().endsWith( '-SNAPSHOT' ) ) {
+        finalizedBy 'closeAndReleaseStagingRepositories'
+    }
+}

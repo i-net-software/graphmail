@@ -1,0 +1,2 @@
+protocol=msgraph-store; type=store; class=de.inetsoftware.mail.graph.GraphStore; vendor=i-net software; version=${projectVersion}
+protocol=msgraph-send; type=transport; class=de.inetsoftware.mail.graph.GraphTransport; vendor=i-net software; version=${projectVersion}
