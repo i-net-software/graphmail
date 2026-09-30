@@ -6,7 +6,10 @@ plugins {
 }
 
 group = 'de.inetsoftware'
-version = project.findProperty('version') ?: '0.1'
+version = providers.gradleProperty( 'version' ).getOrNull()
+if( version == null || version.isBlank() || version == 'unspecified' ) {
+    throw new GradleException( 'Set a valid publication version in gradle.properties or with -Pversion=<version>.' )
+}
 
 base {
     archivesName = 'graphmail'

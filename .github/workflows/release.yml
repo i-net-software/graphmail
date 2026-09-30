@@ -41,7 +41,7 @@ jobs:
           SONATYPE_PASSWORD: ${{ secrets.SONATYPE_PASSWORD }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-        run: gradle deployToSonatype -stacktrace -Pversion=${{ steps.version.outputs.value }}
+        run: gradle deployToSonatype --stacktrace -Pversion=${{ steps.version.outputs.value }}
 
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
